@@ -3,22 +3,24 @@ package socket
 import(
  "log"
  "time"
-"fmt"
+//"fmt"
+"bytes"
 )
- 
+const(
+	pingPeriod = (30 * time.Second) 
+)
 type receivPack struct {
-	group string
 	topic string
-	msg string
+	msg []byte
 }
 type sendPack struct{
-	msgType int
-	msg string
+	msgType byte
+	msg []byte
 }
 
 type executer interface {
 	readPacket()
-    writePacket(pack *sendPack)
+    writePacket(pack *sendPack) error
 }
 
 type sender struct {
@@ -31,37 +33,46 @@ func (s *sender) readPacket(){
 		log.Fatal(err)
 		return
 	 }
-	 g,err := s.h.group()
-	 if err != nil {
-		log.Fatal(err)
-		return
-	 }
+
 	 b,err := s.h.body()
 	 if err != nil {
 		log.Fatal(err)
 		return
 	 }
-	 p := &receivPack{group:g,topic:t,msg:string(b)}
+	 p := &receivPack{topic:t,msg:b}
 	 pa <- p
 	
 }
-func (s *sender) writePacket(pack *sendPack){
-	 
+func (s *sender) writePacket(pack *sendPack) error {
+ return nil	 
 }
 
 type resceive struct {
 	 h Host
 }
 
-func (s *resceive) writePacket(pack *sendPack){
-    //s.h.conn.Write(msg)
-	fmt.Println(pack.msg)
+//发送数据
+func (s *resceive) writePacket(pack *sendPack) error {
+	b := make([]byte,1,1) 
+ 	b[0] =  pack.msgType
+	buf := bytes.NewBuffer(b)
+ 	_,err :=  buf.Write(pack.msg)
+	if err != nil {
+		return err
+	}
+	_,err = s.h.conn.Write(buf.Bytes())
+	if err != nil {
+		return err
+	}
+	return nil
 }
+//接收接收者信息
 func (s *resceive) readPacket(){
 	for{
 	   op,err := s.h.op()
 	   if err != nil {
 		log.Fatal(err)
+		return
 	   }
 	  switch op {
 		case PONGMESSGE:
@@ -70,4 +81,19 @@ func (s *resceive) readPacket(){
 	   
 	}
 }
- 
+//心跳
+func (s *resceive) heartbeat(){
+	ticker := time.NewTicker(pingPeriod)
+	defer func() {		
+		ticker.Stop()		
+	}()
+	for {
+		select {
+			case <-ticker.C: 
+			 if err := s.writePacket(&sendPack{msgType:PINGMESSGE}); err != nil {
+				log.Fatal("PINGMESSGE error",err)
+				return
+			 }
+		}
+	}
+}

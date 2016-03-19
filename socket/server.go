@@ -7,7 +7,7 @@ import(
 	"errors"
 )
 const(
-	TIMEOUT = 1*60 * time.Second
+	TIMEOUT = 2*60 * time.Second
 )
 
 
@@ -49,7 +49,8 @@ func (s *Server) getStrategy( id int) (ex executer,e error) {
 		ex = &sender{h:s.h}
 		e = nil 
 	}else if id == RESCEIVE {
-		ex = &resceive{h:s.h}
+		r := &resceive{h:s.h}
+		ex = r
 		t,err := s.h.topic()
 		if err != nil{
 			return nil,err
@@ -58,7 +59,10 @@ func (s *Server) getStrategy( id int) (ex executer,e error) {
 		if err != nil{
 			return nil,err
 		}
-		register(ex,t,g)//注册
+		//注册
+		register(ex,t,g)
+		//启动心跳
+		go r.heartbeat()
 		e = nil 
 	}else{
 		e = errors.New("not correct packet")

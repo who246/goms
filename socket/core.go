@@ -1,7 +1,7 @@
 package socket
 
 import(
-	 "fmt"
+//	 "fmt"
 	"sync"
 	 "errors"
 	"log"
@@ -15,15 +15,10 @@ func init(){
 	pa = make(chan *receivPack)  
 }
 
-func getReceivers(topic,group string)  (executer,error){
+func getReceivers(topic string)  (map[string][]executer,error){
 	g,ok := receivers[topic]
 	if ok {
-		t,ok := g[group]
-		if ok {
-			return t[0],nil
-		}else{
-			return nil,errors.New("sender not exit")
-		}
+		return g,nil
 	}else{
 		return nil,errors.New("sender not exit")
 	}
@@ -54,18 +49,25 @@ func WriteTask(){
 		select {
 			case p, ok := <-pa :
 			if ok {
-			go send(p)
+			g,err := getReceivers(p.topic)
+			if err != nil {
+				log.Fatal("receiv error",err)
+				break
+			}
+			 for _, v := range g {
+			   go send(v,p)
+			 }
 			}
 		}
 	 }
 }
-func send(p *receivPack){
-	 fmt.Println(p.msg)
-	 _,err := getReceivers(p.topic,p.group)
+func send(exs []executer,p *receivPack){
+	  ex := exs[0]
+	 //ex,err := getReceivers(p.topic,p.group)
 	//not find
-	 if err != nil{
-		log.Fatal("not find receiver")
-		return
-	 }
-//	  ex.write([]byte(p.msg))
+//	 if err != nil{
+//		log.Fatal("send error",err)
+//		return
+//	 }
+	  ex.writePacket(&sendPack{msgType:TEXTMESSGE,msg:p.msg})
 }
